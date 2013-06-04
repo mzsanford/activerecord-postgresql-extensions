@@ -103,7 +103,8 @@ module ActiveRecord
         table_definition = PostgreSQLTableDefinition.new(self, native_database_types, table_name, options)
         yield table_definition if block_given?
 
-        execute table_definition.to_s
+        execute PostgreSQLSchemaCreation.new(self).accept table_definition
+
         unless table_definition.post_processing.blank?
           table_definition.post_processing.each do |pp|
             execute pp
@@ -155,6 +156,92 @@ module ActiveRecord
         end
     end
 
+    class AbstractAdapter
+      class PostgreSQLSchemaCreation < SchemaCreation
+        def visit_PostgreSQLTableDefinition(o)
+          columns = o.columns
+
+          if o.options[:of_type]
+            if !columns.empty?
+              raise ArgumentError.new("Cannot specify columns while using the :of_type option")
+            elsif o.options[:like]
+              raise ArgumentError.new("Cannot specify both the :like and :of_type options")
+            elsif o.options[:inherits]
+              raise ArgumentError.new("Cannot specify both the :inherits and :of_type options")
+            else
+              o.options[:id] = false
+            end
+          end
+
+          unless o.options[:id] == false
+            o.primary_key(o.options[:primary_key] || Base.get_primary_key(o.table_name))
+
+            # ensures that the primary key column is first.
+            columns.unshift(o.columns.last)
+          end
+
+          sql = 'CREATE '
+          sql << 'TEMPORARY ' if o.options[:temporary]
+          sql << 'UNLOGGED ' if o.options[:unlogged]
+          sql << 'TABLE '
+          sql << 'IF NOT EXISTS ' if o.options[:if_not_exists]
+          sql << "#{quote_table_name(o.name)}"
+          sql << " OF #{quote_table_name(o.options[:of_type])}" if o.options[:of_type]
+
+          ary = []
+
+          if !o.options[:of_type]
+            ary << columns.map { |c| accept c }
+            ary << accept(o.like_options) if o.like_options.present?
+          end
+
+          unless o.table_constraints.empty?
+            ary << o.table_constraints.map { |c| accept c }
+          end
+
+          unless ary.empty?
+            sql << " (\n  "
+            sql << ary * ",\n  "
+            sql << "\n)"
+          end
+
+          sql << "\nINHERITS (" << Array(o.options[:inherits]).collect { |i| quote_table_name(i) }.join(', ') << ')' if o.options[:inherits]
+          sql << "\nON COMMIT #{o.options[:on_commit].to_s.upcase.gsub(/_/, ' ')}" if o.options[:on_commit]
+          sql << "\n#{o.options[:options]}" if o.options[:options]
+          sql << "\nTABLESPACE #{o.base.quote_tablespace(o.options[:tablespace])}" if o.options[:tablespace]
+          "#{sql};"
+        end
+
+        def visit_PostgreSQLUniqueConstraint(o)
+          o.to_sql
+        end
+
+        def visit_PostgreSQLPrimaryKeyConstraint(o)
+          o.to_sql
+        end
+
+        def visit_PostgreSQLExcludeConstraint(o)
+          o.to_sql
+        end
+
+        def visit_PostgreSQLLikeOptions(o)
+          o.to_sql
+        end
+
+        def visit_PostgreSQLForeignKeyConstraint(o)
+          o.to_sql
+        end
+
+        def visit_PostgreSQLCheckConstraint(o)
+          o.to_sql
+        end
+
+        def visit_PostgreSQLCheckConstraintCollection(o)
+          o.to_sql
+        end
+      end
+    end
+
     # Creates a PostgreSQL table definition. This class isn't really meant
     # to be used directly. Instead, see PostgreSQLAdapter#create_table
     # for usage.
@@ -166,7 +253,7 @@ module ActiveRecord
     # been created. See the source code for PostgreSQLAdapter#create_table
     # and PostgreSQLTableDefinition#geometry for an example of its use.
     class PostgreSQLTableDefinition < TableDefinition
-      attr_accessor :base, :table_name, :options, :post_processing, :like_options
+      attr_accessor :base, :table_name, :options, :table_constraints, :post_processing, :like_options
 
       def initialize(base, types, name, options = {}) #:nodoc:
         @base = base
@@ -174,55 +261,6 @@ module ActiveRecord
         @table_name = name
         super(types, name, options[:temporary], options)
       end
-
-      def to_sql #:nodoc:
-        if self.options[:of_type]
-          if !@columns.empty?
-            raise ArgumentError.new("Cannot specify columns while using the :of_type option")
-          elsif options[:like]
-            raise ArgumentError.new("Cannot specify both the :like and :of_type options")
-          elsif options[:inherits]
-            raise ArgumentError.new("Cannot specify both the :inherits and :of_type options")
-          else
-            options[:id] = false
-          end
-        end
-
-        unless options[:id] == false
-          self.primary_key(options[:primary_key] || Base.get_primary_key(table_name))
-
-          # ensures that the primary key column is first.
-          @columns.unshift(@columns.pop)
-        end
-
-        sql = 'CREATE '
-        sql << 'TEMPORARY ' if options[:temporary]
-        sql << 'UNLOGGED ' if options[:unlogged]
-        sql << 'TABLE '
-        sql << 'IF NOT EXISTS ' if options[:if_not_exists]
-        sql << "#{base.quote_table_name(table_name)}"
-        sql << " OF #{base.quote_table_name(options[:of_type])}" if options[:of_type]
-
-        ary = []
-        if !options[:of_type]
-          ary << @columns.collect(&:to_sql)
-          ary << @like if defined?(@like) && @like
-        end
-        ary << @table_constraints unless @table_constraints.empty?
-
-        unless ary.empty?
-          sql << " (\n  "
-          sql << ary * ",\n  "
-          sql << "\n)"
-        end
-
-        sql << "\nINHERITS (" << Array(options[:inherits]).collect { |i| base.quote_table_name(i) }.join(', ') << ')' if options[:inherits]
-        sql << "\nON COMMIT #{options[:on_commit].to_s.upcase.gsub(/_/, ' ')}" if options[:on_commit]
-        sql << "\n#{options[:options]}" if options[:options]
-        sql << "\nTABLESPACE #{base.quote_tablespace(options[:tablespace])}" if options[:tablespace]
-        "#{sql};"
-      end
-      alias :to_s :to_sql
 
       # Creates a LIKE statement for use in a table definition.
       #
