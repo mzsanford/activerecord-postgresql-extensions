@@ -121,12 +121,13 @@ module ActiveRecord
           "#{opts[:spatial_column_type]}(#{column_args.join(', ')})"
         end
 
-        column = self[column_name] || ColumnDefinition.new(base, column_name, column_type)
+        column = @columns_hash[column_name] || ColumnDefinition.new(column_name, column_type)
         column.default = opts[:default]
         column.null = opts[:null]
 
-        unless @columns.include?(column)
-          @columns << column
+        unless columns.include?(column)
+          @columns_hash[column_name] = column
+
           if opts[:add_constraints] && (
             ActiveRecord::PostgreSQLExtensions::PostGIS.VERSION[:lib] < '2.0' ||
             opts[:force_constraints]
