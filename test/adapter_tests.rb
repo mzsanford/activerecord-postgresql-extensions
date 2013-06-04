@@ -207,4 +207,22 @@ class AdapterExtensionTests < MiniTest::Unit::TestCase
       %{ALTER TABLE "foo" ALTER "bar" DROP NOT NULL},
     ], statements)
   end
+
+  def test_internal_name_column_type
+    ARBC.exec_query('DROP TABLE IF EXISTS ex')
+    ARBC.exec_query('CREATE TABLE ex(data name)')
+    column = ARBC.columns('ex').find { |col| col.name == 'data' }
+    assert_equal :string, column.type
+  ensure
+    ARBC.exec_query('DROP TABLE IF EXISTS ex')
+  end
+
+  def test_internal_char_column_type
+    ARBC.exec_query('DROP TABLE IF EXISTS ex')
+    ARBC.exec_query('CREATE TABLE ex(data "char")')
+    column = ARBC.columns('ex').find { |col| col.name == 'data' }
+    assert_equal :string, column.type
+  ensure
+    ARBC.exec_query('DROP TABLE IF EXISTS ex')
+  end
 end
