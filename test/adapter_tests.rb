@@ -152,7 +152,7 @@ class AdapterExtensionTests < MiniTest::Unit::TestCase
       :expression => '1 + 1'
     })
 
-    if RUBY_PLATFORM == 'java' || ActiveRecord::VERSION::MAJOR <= 2
+    if RUBY_PLATFORM == 'java'
       assert_equal([
         %{ALTER TABLE "foo" ADD COLUMN "bar" integer},
         %{ALTER TABLE "foo" ALTER COLUMN "bar" SET DEFAULT 100},

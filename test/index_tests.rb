@@ -36,12 +36,6 @@ class IndexTests < MiniTest::Unit::TestCase
       })
     })
 
-    escaped_array = if ActiveRecord::VERSION::STRING >= "3.0"
-      "(1, 2, 3, 4)"
-    else
-      "(1,2,3,4)"
-    end
-
     assert_equal([
       "CREATE INDEX \"foo_names_idx\" ON \"foo\"(\"first_name\", \"last_name\");",
       "CREATE INDEX \"foo_bar_id_idx\" ON \"foo\"(\"bar_id\");",
@@ -49,7 +43,7 @@ class IndexTests < MiniTest::Unit::TestCase
       "CREATE INDEX \"foo_search_idx\" ON \"foo\" USING \"gin\"(\"search\");",
       "CREATE INDEX \"foo_names_idx\" ON \"foo\"(\"name\" \"text_pattern_ops\");",
       "CREATE UNIQUE INDEX CONCURRENTLY \"foo_bar_id_idx\" ON \"foo\"(\"bar_id\" ASC NULLS LAST) WITH (FILLFACTOR = 10) TABLESPACE \"fubar\" WHERE (bar_id IS NOT NULL);",
-      "CREATE INDEX \"foo_bar_id_idx\" ON \"foo\"(\"bar_id\") WHERE (\"foos\".\"id\" IN #{escaped_array});",
+      "CREATE INDEX \"foo_bar_id_idx\" ON \"foo\"(\"bar_id\") WHERE (\"foos\".\"id\" IN (1, 2, 3, 4));",
     ], statements)
   end
 

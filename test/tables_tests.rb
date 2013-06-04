@@ -11,21 +11,12 @@ class TablesTests < MiniTest::Unit::TestCase
       t.integer :bar_id, :default => '20 + 10'
     end
 
-    if ActiveRecord::VERSION::STRING >= "3.2"
-      assert_equal([
+    assert_equal([
       %{CREATE TABLE "foo" (
   "id" serial primary key,
   "foo_id" integer DEFAULT 10 + 20,
   "bar_id" integer DEFAULT 20
 );} ], statements)
-    else
-      assert_equal([
-      %{CREATE TABLE "foo" (
-  "id" serial primary key,
-  "foo_id" integer DEFAULT 10 + 20,
-  "bar_id" integer DEFAULT '20 + 10'
-);} ], statements)
-    end
   end
 
   def test_like
