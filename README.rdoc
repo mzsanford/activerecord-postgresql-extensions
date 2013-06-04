@@ -29,6 +29,13 @@ PostgreSQL adapter including:
   geos-extensions gem at https://github.com/zoocasa/geos-extensions or
   the RGeo project at https://github.com/dazuma/rgeo .
 
+== Requirements
+
+Rails 4 is now the minimum requirement starting with version 0.3.0. We may
+still release fixes for the older 0.2 branch as necessary, but as we are
+transitioning ourselves to Rails 4 internally we will be focusing on 4+ going
+forward.
+
 == Building db/schema.rb
 
 While this extension has support for creating a bunch of PostgreSQL-specific
