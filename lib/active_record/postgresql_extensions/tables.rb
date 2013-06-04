@@ -2,12 +2,6 @@
 require 'active_record/connection_adapters/postgresql_adapter'
 
 module ActiveRecord
-  class InvalidLikeTypes < ActiveRecordError #:nodoc:
-    def initialize(likes)
-      super("Invalid LIKE INCLUDING/EXCLUDING types - #{likes.inspect}")
-    end
-  end
-
   class InvalidTableOptions < ActiveRecordError #:nodoc:
   end
 
@@ -172,7 +166,7 @@ module ActiveRecord
     # been created. See the source code for PostgreSQLAdapter#create_table
     # and PostgreSQLTableDefinition#geometry for an example of its use.
     class PostgreSQLTableDefinition < TableDefinition
-      attr_accessor :base, :table_name, :options, :post_processing
+      attr_accessor :base, :table_name, :options, :post_processing, :like_options
 
       def initialize(base, types, name, options = {}) #:nodoc:
         @base = base
@@ -246,21 +240,7 @@ module ActiveRecord
       # LIKE you use in a WHERE condition. This is, PostgreSQL's
       # own special LIKE clause for table definitions. Like.
       def like(parent_table, options = {})
-        assert_valid_like_types(options[:includes])
-        assert_valid_like_types(options[:excludes])
-
-        # Huh? Whyfor I dun this?
-        # @like = base.with_schema(@schema) { "LIKE #{base.quote_table_name(parent_table)}" }
-        @like = "LIKE #{@base.quote_table_name(parent_table)}"
-
-        if options[:including]
-          @like << Array(options[:including]).collect { |l| " INCLUDING #{l.to_s.upcase}" }.join
-        end
-
-        if options[:excluding]
-          @like << Array(options[:excluding]).collect { |l| " EXCLUDING #{l.to_s.upcase}" }.join
-        end
-        @like
+        @like_options = PostgreSQLLikeOptions.new(@base, parent_table, options)
       end
 
       # Add a CHECK constraint to the table. See
@@ -347,18 +327,6 @@ module ActiveRecord
         self
       end
       alias_method_chain :column, :constraints
-
-      private
-        LIKE_TYPES = %w{ defaults constraints indexes }.freeze
-
-        def assert_valid_like_types(likes) #:nodoc:
-          unless likes.blank?
-            check_likes = Array(likes).collect(&:to_s) - LIKE_TYPES
-            if !check_likes.empty?
-              raise ActiveRecord::InvalidLikeTypes.new(check_likes)
-            end
-          end
-        end
     end
   end
 end
